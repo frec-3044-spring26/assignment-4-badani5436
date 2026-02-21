@@ -1,6 +1,6 @@
 ---
 title: "Lake Ice Phenology: Part 1"
-author: 'YOUR NAME'
+author: 'Husaina Badani'
 format:
   html:
     embed-resources: true
@@ -26,13 +26,14 @@ Now use `read_excel()` to read in `file_name`. Remember that Excel files can hav
 
 ```{r}
 library(readxl)
-
+ice_data <- read_excel(file_name, sheet = "data")
 ```
 
 Now, look at a preview of the data using the `head()` function. The `doy` in `ice_off_doy` stands for "day of the year" and is the day within the year where ice off occurred (January 1 = doy 1).  `did_not_freeze` is a column where 1 = did not freeze and 0 = did freeze.
 
 ```{r}
-
+head(ice_data)
+names(ice_data)
 ```
 
 There should be four columns and \~2703 rows.
@@ -42,6 +43,10 @@ There should be four columns and \~2703 rows.
 We will practice key skills in the module using a focal lake. Use the `filter` function to filter the more extensive data to only contain the data from Lake Sunapee, a lake in New Hampshire. Filter the data `ice_data` by the variable `lake_name` to create a data frame called `sunapee`.
 
 ```{r}
+library(tidyverse)
+
+sunapee <- ice_data %>%
+  filter(lake_name == "Sunapee")
 
 ```
 
@@ -58,16 +63,29 @@ Be sure that the title, x-axis, and y-axis labels are clearly labeled.
 **Answer 1:**
 
 ```{r}
-
+sunapee <- sunapee %>%
+  mutate(ice_off_doy = as.numeric(ice_off_doy),
+         year = as.numeric(year))
+ggplot(sunapee, aes(x = year, y = ice_off_doy)) +
+  geom_point() +
+  geom_line() +
+  labs(
+    title = "Lake Sunapee Ice-Off Day of Year Over Time",
+    x = "Year",
+    y = "Ice-Off Day of Year (DOY)"
+  )
 ```
 
 # How does ice cover change over time at Lake Sunapee?
+- You can see ice-off day varies a lot year to year, but there's a slight downward trend over time.
 
 We want to model how the ice-off date changes over time. Our approach in this module is to use a linear regression that predicts the ice-off day of year as a function of the year. The `lm` function will estimate the parameters of the DOY = b + m \* YEAR linear regression where b is the intercept and m is the slope.
 
 **Question 2:**
 
 What do you expect the sign (plus, minus, or no change) to be for the slope of the relationship? Why?
+
+- The slope should be negative. As years increase (more recent times), we expect ice to melt earlier in the year due to climate warming, meaning the ice-off day of year (DOY) should decrease over time. A negative slope would reflect this earlier ice-off trend.
 
 **Answer 2:**
 
@@ -76,13 +94,13 @@ Use the `lm` function to predict `ice_off_doy` as a function (`~`) of the year f
 Create an object called `fit` that contains the results of the linear model.
 
 ```{r}
-
+fit <- lm(ice_off_doy ~ year, data = sunapee)
 ```
 
-Then, use the function `summary` to explore the result of the `lm` function.
+Then, use the function `summary` to explore the r9esult of the `lm` function.
 
 ```{r}
-
+summary(fit)
 ```
 
 The results of your linear model are in an object named `fit`, so you can find the regression coefficients at `fit$coefficients[1]` (the intercept) and `fit$coefficients[2]` (the slope). Confirm that `fit$coefficients[1]` and `fit$coefficients[2]` match the values expected from the summary command you ran above.
@@ -98,6 +116,8 @@ What is the direction of the slope? How does this match your expectations from Q
 
 **Answer 3:**
 
+-  The slope is negative (-0.106 days/year). This does match the expectation from Question 2 — as years increase, the ice-off day of year decreases, meaning that the ice is melting earlier over time at Lake Sunapee.
+
 # Is our model any good?
 
 ## R2
@@ -109,6 +129,7 @@ First, it is important to understand how much variation is explained by the mode
 What is the R2 for the regression? Based on the R2, is `year` and `ice_off_doy` strongly related?
 
 **Answer 4:**
+- The R2 for the regression is 0.2055. This means that year explains only about 20.5% of the variation in ice-off day of year. This is a relatively low R2, which means that year and ice-off DOY are not strongly related.
 
 ## Residuals normally distributed
 
@@ -140,7 +161,11 @@ Use the [`add_predictions()`](https://modelr.tidyverse.org/reference/add_predict
 **Answer 5:**
 
 ```{r}
+library(modelr)
 
+sunapee <- sunapee %>%
+  add_predictions(fit) %>%
+  add_residuals(fit)
 ```
 
 Now, to visualize the residuals, use `geom_histogram()` to plot them as a histogram. I recommend using a bin width of 10 in the histogram.
@@ -152,9 +177,17 @@ Show Histogram and answer the following question: do the residuals meet the assu
 **Answer 6:**
 
 ```{r}
-
+ggplot(sunapee, aes(x = resid)) +
+  geom_histogram(binwidth = 10) +
+  labs(
+    title = "Histogram of Residuals",
+    x = "Residual (days)",
+    y = "Count"
+  )
 ```
 
+
+- The distribution meets the assumptions of linear regression — residuals are centered near zero (indicating no bias) though the distribution is slightly right-skewed with a longer tail on the positive side. Overall, the assumption of normally distributed residuals is reasonably satisfied.
 
 ## The slope is different from zero
 
@@ -165,6 +198,7 @@ A slope could appear to be higher or lower than zero, but the uncertainty in the
 Based on the `summary()` above, what is the p-value for the slope?
 
 **Answer 7:**
+- The p-value for the slope is 2.5e-09. This is an extremely small p-value. This means there is a very low probability of observing a slope this extreme if the true slope were actually zero, giving us evidence that the slope is significantly different from zero.
 
 ## The slope physically meaningful
 
@@ -175,7 +209,7 @@ A slope value could have a low probability of being 0 (thus we have a strong bel
 Based on the slope value, how many more years are needed to pass before the lake has a 1 week change in ice off doy? Do you think this is meaningful? Why?
 
 **Answer 8:**
-
+- Based on the slope of -0.106 days/year, the ice-off date is shifting earlier by about 0.106 days per year. To achieve a 7-day change, it would take approximately 66 years (7 ÷ 0.106). This is meaningful, as it indicates that lake ice is consistently melting earlier due to long-term climate warming.
 ## Overall model assessment
 
 **Question 9:**
@@ -183,13 +217,23 @@ Based on the slope value, how many more years are needed to pass before the lake
 How comfortable are you proceeding with using this linear model for additional analysis and prediction? Why? (I am not looking for your gut answer, rather I want you to apply concepts taught in this module to justify your answer)
 
 **Answer 9:**
+- The model is pretty good. The slope is statistically significant (p = 2.5e-09) and residuals are approximately normally distributed, satisfying key assumptions. However, the low R² (0.21) means year only explains about 21% of the variation in ice-off DOY, giving the model weak predictive power for any specific year.
 
 **Question 10:**
 Now plot the data for Lake Sunapee (just like above - year on x-axis vs. ice of doy on y axis) but add the line from your regression results (e.g., fit intercept and slope). You will use the [`geom_abline`](https://ggplot2.tidyverse.org/reference/geom_abline.html). 
 
 **Answer 10:**
 ```{r}
-
+ggplot(sunapee, aes(x = year, y = ice_off_doy)) +
+  geom_point() +
+  geom_line() +
+  geom_abline(intercept = fit$coefficients[1], slope = fit$coefficients[2],
+              color = "blue", linewidth = 1) +
+  labs(
+    title = "Lake Sunapee Ice-Off DOY with Linear Regression",
+    x = "Year",
+    y = "Ice-Off Day of Year (DOY)"
+  )
 ```
 
 **Question 11:**
@@ -204,8 +248,22 @@ The goal of this question is to make a forecast of the future ice-off day (with 
 **Answer 11:**
 
 ```{r}
+pred_2040 <- fit$coefficients[1] + fit$coefficients[2] * 2040
+pred_2040
 
+#confidence interval
+lower_ci <- pred_2040 + quantile(sunapee$resid, 0.05)
+upper_ci <- pred_2040 + quantile(sunapee$resid, 0.95)
+
+lower_ci
+upper_ci
+
+#width of CI
+upper_ci - lower_ci
 ```
+-The predicted ice-off DOY for 2040 is day 102.7 
+- The 90% confidence interval is 83.2 to 116.8 (lower CI = 83.23, upper CI = 116.81).
+- The confidence interval is 33.6 days wide, meaning our prediction has considerable uncertainty — the actual ice-off date could range by over a month from the prediction.
 
 # Is the ice-off day of the year changing more quickly in more recent years at Lake Sunapee?
 
@@ -217,7 +275,41 @@ Use the skills developed above to evaluate the question "Is the ice-off day of y
 
 **Answer 12:**
 
+```{r}
+#split into early and late periods
+sunapee_early <- sunapee %>% filter(year < 1970)
+sunapee_late  <- sunapee %>% filter(year >= 1970)
+
+#separate models
+fit_early <- lm(ice_off_doy ~ year, data = sunapee_early)
+fit_late  <- lm(ice_off_doy ~ year, data = sunapee_late)
+
+summary(fit_early)
+summary(fit_late)
+
+#plot both with regression lines
+ggplot(sunapee, aes(x = year, y = ice_off_doy)) +
+  geom_point(aes(color = year < 1970)) +
+  geom_abline(intercept = fit_early$coefficients[1],
+              slope = fit_early$coefficients[2],
+              color = "steelblue", linewidth = 1) +
+  geom_abline(intercept = fit_late$coefficients[1],
+              slope = fit_late$coefficients[2],
+              color = "tomato", linewidth = 1) +
+  scale_color_manual(values = c("tomato", "steelblue"),
+                     labels = c("1970 and after", "Before 1970"),
+                     name = "Period") +
+  labs(
+    title = "Lake Sunapee Ice-Off DOY: Early vs. Late Period",
+    x = "Year",
+    y = "Ice-Off Day of Year (DOY)"
+  )
+```
+
+
 Use a mix of code, figures, and text to present your analysis.  If you want to compare slopes, be sure they are on the same plot.
+
+-  Yes, the ice-off day of year is changing more quickly in more recent years at Lake Sunapee. The slope for the early period (before 1970) is -0.110 days/year, while the slope for the late period (1970 and after) is -0.302 days/year — nearly three times steeper. Both slopes are statistically significant (p = 0.00108 and p = 0.000161). This is also visible in the plot, where the red regression line (1970 and after) is noticeably steeper than the blue line (before 1970). This acceleration suggests that climate warming has been having an increasingly stronger effect on lake ice in more recent decades.
 
 # Rendering and committing
 
